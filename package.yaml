@@ -24,6 +24,9 @@ dependencies:
 - comonad
 - lens
 - ghc
+- mtl
+- containers
+- random
 
 library:
   source-dirs: src
