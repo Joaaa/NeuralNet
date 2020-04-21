@@ -38,7 +38,7 @@ trainingStep ins outs = do
       <> M.fromList (zip (network ^. expected) outs)
     currentLoss = runCalculation ce (network ^. loss)
     currentDerivatives = map (runCalculation ce) (network ^. partialDerivatives)
-  zoom currentParams $ sgd 0.1 currentLoss currentDerivatives
+  zoom currentParams $ sgd 0.03 currentLoss currentDerivatives
   return currentLoss
 
 predict :: Network -> [Float] -> [Float]

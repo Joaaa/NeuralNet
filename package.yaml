@@ -27,6 +27,7 @@ dependencies:
 - mtl
 - containers
 - random
+- matplotlib
 
 library:
   source-dirs: src
