@@ -18,16 +18,17 @@ import System.Random
 import Graphics.Matplotlib
 import System.IO (stdout, hFlush)
 
+run = main
+
 main :: IO ()
 main = do
   putStrLn "Starting"
-  n <- createNetwork sampleModel mseLoss <$> replicateM 1000 (randomRIO (-1.0, 1.0))
-  as :: [Float] <- replicateM 100 $ randomRIO (-1.0, 1.0)
-  bs :: [Float] <- replicateM 100 $ randomRIO (-1.0, 1.0)
+  let model = sampleModel
+  n <- createNetwork model mseLoss <$> replicateM (totalParams model) (randomRIO (-1.0, 1.0))
+  as :: [Double] <- replicateM 100 $ randomRIO (-1.0, 1.0)
+  bs :: [Double] <- replicateM 100 $ randomRIO (-1.0, 1.0)
   let ins = zipWith (\a b -> [a, b]) as bs
-  let outs = zipWith (\a b -> [a * b]) as bs
-  print as
-  print bs
+  let outs = zipWith (\a b -> [a + b]) as bs
   (losses, n') <- runStateT (forM [1..100] (\i -> liftIO (putStrLn $ "Iteration " <> show i) >> iteration ins outs)) n
   onscreen $ plot [1..length losses] losses % mp # "plot.yscale(\"log\")" % title "Loss"
   pred n' [0.5, -0.2]
@@ -37,37 +38,35 @@ main = do
   pred n' [0.8, -0.9]
   pred n' [0.5, 1]
   pred n' [2, 2]
-  forever $ do
-    hFlush stdout
-    (a, b) <- readLn :: IO (Float, Float)
-    pred n' [a, b]
+--  forever $ do
+--    hFlush stdout
+--    (a, b) <- readLn :: IO (Double, Double)
+--    pred n' [a, b]
   where pred n ins = putStrLn $ "f(" <> show ins <> ") = " <> show (predict n ins)
 
-iteration :: [[Float]] -> [[Float]] -> StateT Network IO Float
+iteration :: [[Double]] -> [[Double]] -> StateT Network IO Double
 iteration ins outs = do
   n <- get
   let (losses, n') = runState (forM (zip ins outs) (uncurry trainingStep)) n
   let avgLoss = sum losses / fromIntegral (length ins)
   liftIO $ do
     putStrLn $ "Average loss: " <> show avgLoss
-    putStrLn $ "Losses: " <> show losses
-    putStrLn $ "Parameters: " <> show (n' ^. currentParams)
+    putStrLn $ "Parameter range: [" <> show (minimum $ n' ^. currentParams) <> ", " <> show (maximum $ n' ^. currentParams) <> "]"
   put n'
   return avgLoss
 
-sampleModel = flip execState (createModel 2) $ do
-  addToModel (Dense 10)
-  addToModel (Activation "relu" relu)
-  addToModel (Dense 3)
-  addToModel (Activation "relu" relu)
-  addToModel (Dense 1)
-
-sampleCalc = do
-  let x = CVar "x"
-  let y = CVar "y"
-  let der = deriveTo x (x*x*y)
-  print der
-  let ce = MBCE $ M.fromList [("x", 8), ("y", 3)]
-  print $ runCalculation ce der
-  print sampleModel
-  print $ map (deriveTo (CVar "x0")) $ sampleModel ^. outputs
+sampleModel = createModel 2 [
+    dense 5,
+    relu,
+    dense 1
+  ]
+--
+--sampleCalc = do
+--  let x = CVar "x"
+--  let y = CVar "y"
+--  let der = deriveTo x (x*x*y)
+--  print der
+--  let ce = MBCE $ M.fromList [("x", 8), ("y", 3)]
+--  print $ runCalculation ce der
+--  print sampleModel
+--  print $ map (deriveTo (CVar "x0")) $ sampleModel ^. outputs

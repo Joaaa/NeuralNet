@@ -28,6 +28,7 @@ dependencies:
 - containers
 - random
 - matplotlib
+- vector
 
 library:
   source-dirs: src

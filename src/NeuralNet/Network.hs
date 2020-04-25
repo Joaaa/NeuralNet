@@ -11,38 +11,31 @@ import NeuralNet.Optimizer
 import Debug.Trace (trace)
 
 data Network = Network {
-  _model :: Model,
-  _currentParams :: [Float],
-  _loss :: Calculation,
-  _expected :: [String],
-  _partialDerivatives :: [Calculation]
-} deriving Show
+  _model :: !Model,
+  _currentParams :: ![Double],
+  _loss :: !LossFunction
+}
 
 makeLenses ''Network
 
-createNetwork :: Model -> LossFunction -> [Float] -> Network
+createNetwork :: Model -> LossFunction -> [Double] -> Network
 createNetwork model lossFunction initialParams =
-  Network model initialParams' loss expected partialDerivatives
+  Network model initialParams' lossFunction
   where
-    initialParams' = take (length $ model ^. parameters) initialParams
-    expected = ["o" <> show i | i <- [0 .. length (model ^. outputs) - 1]]
-    loss = lossFunction (model ^. outputs) $ map CVar expected
-    partialDerivatives = [deriveTo (CVar p) loss | p <- model ^. parameters]
+    initialParams' = take (totalParams model) initialParams
 
-trainingStep :: [Float] -> [Float] -> State Network Float
+trainingStep :: [Double] -> [Double] -> State Network Double
 trainingStep ins outs = do
   network <- get
   let
-    ce = MBCE $ M.fromList (zip (network ^. model . inputs) ins)
-      <> M.fromList (zip (network ^. model . parameters) (network ^. currentParams))
-      <> M.fromList (zip (network ^. expected) outs)
-    currentLoss = runCalculation ce (network ^. loss)
-    currentDerivatives = map (runCalculation ce) (network ^. partialDerivatives)
-  zoom currentParams $ sgd 0.03 currentLoss currentDerivatives
+    outputVars = map CVar [0 .. length outs - 1]
+    l = (network ^. loss) outs outputVars
+    outputDerivatives = map (`deriveTo` l) outputVars
+    (modelOutputs, paramDerivatives) = outputsAndDerivativesModel (network ^. model) ins (network ^. currentParams) outputDerivatives
+    currentLoss = runCalculation modelOutputs l
+  zoom currentParams $ sgd 0.03 currentLoss paramDerivatives
   return currentLoss
 
-predict :: Network -> [Float] -> [Float]
+predict :: Network -> [Double] -> [Double]
 predict network ins =
-  let ce = MBCE $ M.fromList (zip (network ^. model . inputs) ins)
-        <> M.fromList (zip (network ^. model . parameters) (network ^. currentParams)) in
-  map (runCalculation ce) (network ^. model . outputs)
+  runModel (network ^. model) ins (network ^. currentParams)

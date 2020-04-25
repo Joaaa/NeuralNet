@@ -4,18 +4,11 @@ import NeuralNet.Model
 import Control.Lens
 import Control.Monad
 import NeuralNet.DerivativeMath
+import Control.Monad.State (State)
+import Data.Sequence (Seq)
 
-newtype Dense = Dense {
-  numNodes :: Int
-} deriving Show
-
-instance LayerDescriptor Dense where
-  showLayer = show
-  addToModel l@(Dense numNodes) = do
-    prevOutputs <- use outputs
-    o <- replicateM numNodes $ do
-      let nodeInputs = CConst 1 : prevOutputs
-      params <- createParams $ length nodeInputs
-      return $ sum $ zipWith (*) (map CVar params) nodeInputs
-    outputs .= o
-    layers <>= [Layer l]
+dense :: Int -> LayerCreator
+dense numHidden inputs =
+  replicateM numHidden $ do
+    params <- createParamVariables (length inputs + 1)
+    return $ sum $ zipWith (*) (inputs <> [1]) params

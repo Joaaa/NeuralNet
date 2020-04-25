@@ -2,7 +2,7 @@ module NeuralNet.LossFunction where
 
 import NeuralNet.DerivativeMath
 
-type LossFunction = [Calculation] -> [Calculation] -> Calculation
+type LossFunction = [Double] -> [Calculation] -> Calculation
 
 mseLoss :: LossFunction
-mseLoss expected actual = sum (map (flip CPow 2) $ zipWith (-) expected actual) / fromIntegral (length actual)
+mseLoss expected actual = sum (map (flip CPow 2) $ zipWith (\a b -> CConst a - b) expected actual) / fromIntegral (length actual)

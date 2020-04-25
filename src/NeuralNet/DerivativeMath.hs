@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
 module NeuralNet.DerivativeMath where
 
 import Data.Data
@@ -6,32 +8,45 @@ import Control.Lens
 import qualified Data.Map as M
 import Data.Maybe (fromMaybe)
 import Control.Monad.Reader
+import qualified Data.Vector as V
+import qualified Data.Sequence as S
+import Data.Foldable (fold)
 
-data Calculation = CSum Calculation Calculation
-  | CProd Calculation Calculation
-  | CPow Calculation Float
-  | CAbs Calculation
-  | CSignum Calculation
-  | CVar String
-  | CConst Float
+data Calculation = CSum !Calculation !Calculation
+  | CProd !Calculation !Calculation
+  | CPow !Calculation !Double
+  | CAbs !Calculation
+  | CSignum !Calculation
+  | CVar !Int
+  | CConst !Double
   deriving (Typeable, Eq)
 
-class CalculationEnvironment p where
-  getVar :: p -> String -> Float
+class Monoid p => CalculationEnvironment p where
+  varAt :: p -> Int -> Double
 
-newtype MapBackedCalculationEnvironment = MBCE (M.Map String Float)
+instance CalculationEnvironment [Double] where
+  varAt = (!!)
 
-instance CalculationEnvironment MapBackedCalculationEnvironment where
-  getVar (MBCE map) v = fromMaybe 0 (M.lookup v map)
+instance CalculationEnvironment (V.Vector Double) where
+  varAt = (V.!)
 
-runCalculation :: CalculationEnvironment e => e -> Calculation -> Float
+instance CalculationEnvironment (S.Seq Double) where
+  varAt = S.index
+
+instance CalculationEnvironment () where
+  varAt _ _ = 0
+
+runCalculation :: CalculationEnvironment e => e -> Calculation -> Double
 runCalculation e (CSum l r) = runCalculation e l + runCalculation e r
 runCalculation e (CProd l r) = runCalculation e l * runCalculation e r
 runCalculation e (CPow l r) = runCalculation e l ** r
 runCalculation e (CAbs a) = abs $ runCalculation e a
 runCalculation e (CSignum a) = signum $ runCalculation e a
-runCalculation e (CVar v) = getVar e v
+runCalculation e (CVar v) = varAt e v
 runCalculation e (CConst c) = c
+
+runCalculations :: (Foldable f, CalculationEnvironment e, Traversable t) => f e -> t Calculation -> t Double
+runCalculations environments = fmap (runCalculation (fold environments))
 
 instance Num Calculation where
   0 + r = r
@@ -74,6 +89,4 @@ instance Show Calculation where
   show (CAbs a) = "abs(" <> show a <> ")"
   show (CSignum a) = "signum(" <> show a <> ")"
   show (CConst c) = show c
-  show (CVar n) = n
-
-relu x = (signum x + 1) * 0.5 * x
+  show (CVar n) = "[" <> show n <> "]"

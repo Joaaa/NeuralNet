@@ -5,7 +5,7 @@ import NeuralNet.DerivativeMath
 import qualified Data.Map as M
 import Control.Monad.State
 
-type Optimizer = Float -> [Float] -> State [Float] ()
+type Optimizer = Double -> [Double] -> State [Double] ()
 
-sgd :: Float -> Optimizer
+sgd :: Double -> Optimizer
 sgd lr loss derivatives = modify $ \oldValues -> [v - lr * d | (v, d) <- zip oldValues derivatives]
