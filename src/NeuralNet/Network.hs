@@ -6,7 +6,6 @@ import Control.Monad.State
 import NeuralNet.LossFunction
 import NeuralNet.DerivativeMath
 import Control.Lens
-import qualified Data.Map as M
 import NeuralNet.Optimizer
 import Debug.Trace (trace)
 import qualified Data.Vector as V
@@ -14,14 +13,15 @@ import qualified Data.Vector as V
 data Network = Network {
   _model :: !Model,
   _currentParams :: !(V.Vector Double),
-  _loss :: !LossFunction
+  _loss :: !LossFunction,
+  _optimizer :: !Optimizer
 }
 
 makeLenses ''Network
 
-createNetwork :: Model -> LossFunction -> [Double] -> Network
-createNetwork model lossFunction initialParams =
-  Network model initialParams' lossFunction
+createNetwork :: Model -> LossFunction -> Optimizer -> [Double] -> Network
+createNetwork model lossFunction optimizer initialParams =
+  Network model initialParams' lossFunction optimizer
   where
     initialParams' = V.fromList $ take (totalParams model) initialParams
 
@@ -34,7 +34,7 @@ trainingStep ins outs = do
     outputDerivatives = map (`deriveTo` l) outputVars
     (modelOutputs, paramDerivatives) = outputsAndDerivativesModel (network ^. model) ins (network ^. currentParams) outputDerivatives
     currentLoss = runCalculation modelOutputs l
-  zoom currentParams $ sgd 0.03 currentLoss paramDerivatives
+  zoom currentParams $ (network ^. optimizer) currentLoss paramDerivatives
   return currentLoss
 
 predict :: Network -> V.Vector Double -> V.Vector Double

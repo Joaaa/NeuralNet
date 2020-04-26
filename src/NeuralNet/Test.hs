@@ -18,18 +18,19 @@ import System.Random
 import Graphics.Matplotlib
 import System.IO (stdout, hFlush)
 import qualified Data.Vector as V
-
-run = main
+import NeuralNet.Optimizer (sgd)
 
 main :: IO ()
 main = do
   putStrLn "Starting"
   let model = sampleModel
-  n <- createNetwork model mseLoss <$> replicateM (totalParams model) (randomRIO (-1.0, 1.0))
+  putStrLn $ "Trainable parameters: " <> show (totalParams model)
+  n <- createNetwork model mseLoss (sgd 0.03) <$> replicateM (totalParams model) (randomRIO (-1.0, 1.0))
   as :: [Double] <- replicateM 100 $ randomRIO (-1.0, 1.0)
   bs :: [Double] <- replicateM 100 $ randomRIO (-1.0, 1.0)
   let ins = zipWith (\a b -> [a, b]) as bs
   let outs = zipWith (\a b -> [a * b]) as bs
+  onscreen $ scatter (map (!!0) ins) (map (!!1) ins) @@ [o2 "c" (map (!!0) outs)] % title "Training data"
   (losses, n') <- runStateT (forM [1..1000] (\i -> liftIO (putStrLn $ "Iteration " <> show i) >> iteration ins outs)) n
   onscreen $ plot [1..length losses] losses % mp # "plot.yscale(\"log\")" % title "Loss"
   pred n' [0.5, -0.2]
@@ -39,10 +40,8 @@ main = do
   pred n' [0.8, -0.9]
   pred n' [0.5, 1]
   pred n' [2, 2]
-  forever $ do
-    hFlush stdout
-    (a, b) <- readLn :: IO (Double, Double)
-    pred n' [a, b]
+  hFlush stdout
+  readLn
   where pred n ins = putStrLn $ "f(" <> show ins <> ") = " <> show (predict n $ V.fromList ins)
 
 iteration :: [[Double]] -> [[Double]] -> StateT Network IO Double
@@ -60,21 +59,9 @@ iteration ins outs = do
   return avgLoss
 
 sampleModel = createModel 2 [
-    dense 10,
+    dense 5,
     relu,
-    dense 10,
-    relu,
-    dense 10,
+    dense 3,
     relu,
     dense 1
   ]
---
---sampleCalc = do
---  let x = CVar "x"
---  let y = CVar "y"
---  let der = deriveTo x (x*x*y)
---  print der
---  let ce = MBCE $ M.fromList [("x", 8), ("y", 3)]
---  print $ runCalculation ce der
---  print sampleModel
---  print $ map (deriveTo (CVar "x0")) $ sampleModel ^. outputs

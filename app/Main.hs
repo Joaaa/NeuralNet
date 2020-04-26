@@ -1,12 +1,12 @@
 module Main where
 
-import qualified StoreComonad
 import qualified NeuralNet.Test
+import qualified MNIST.MNIST
 
 import System.Environment
 
 main :: IO ()
 main = getArgs >>= runProgram . head
 
-runProgram "StoreComonad" = StoreComonad.main
-runProgram "NeuralNet" = NeuralNet.Test.main
+runProgram "Testing" = NeuralNet.Test.main
+runProgram "MNIST" = MNIST.MNIST.main

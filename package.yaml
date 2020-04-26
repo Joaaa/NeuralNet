@@ -29,6 +29,7 @@ dependencies:
 - random
 - matplotlib
 - vector
+- bytestring
 
 library:
   source-dirs: src

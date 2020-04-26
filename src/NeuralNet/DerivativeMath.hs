@@ -15,6 +15,8 @@ import Data.Foldable (fold)
 data Calculation = CSum !Calculation !Calculation
   | CProd !Calculation !Calculation
   | CPow !Calculation !Double
+  | CLog !Calculation
+  | CExp !Calculation
   | CAbs !Calculation
   | CSignum !Calculation
   | CVar !Int
@@ -40,6 +42,8 @@ runCalculation :: CalculationEnvironment e => e -> Calculation -> Double
 runCalculation e (CSum l r) = runCalculation e l + runCalculation e r
 runCalculation e (CProd l r) = runCalculation e l * runCalculation e r
 runCalculation e (CPow l r) = runCalculation e l ** r
+runCalculation e (CLog a) = log $ runCalculation e a
+runCalculation e (CExp a) = exp $ runCalculation e a
 runCalculation e (CAbs a) = abs $ runCalculation e a
 runCalculation e (CSignum a) = signum $ runCalculation e a
 runCalculation e (CVar v) = varAt e v
@@ -70,11 +74,14 @@ instance Num Calculation where
 instance Fractional Calculation where
   fromRational = CConst . fromRational
   a / (CConst c) = a * CConst (1 / c)
+  a / b = a * CPow b (-1)
 
 deriveTo :: Calculation -> Calculation -> Calculation
 deriveTo x (CSum l r) = deriveTo x l + deriveTo x r
 deriveTo x (CProd l r) = deriveTo x l * r + l * deriveTo x r
 deriveTo x (CPow l r) = CConst r * CPow l (r - 1) * deriveTo x l
+deriveTo x (CLog a) = deriveTo x a / a
+deriveTo x (CExp a) = deriveTo x a * CExp a
 deriveTo x (CAbs a) = signum a * deriveTo x a
 deriveTo x (CSignum _) = 0
 deriveTo x (CConst _) = 0
@@ -86,6 +93,8 @@ instance Show Calculation where
   show (CSum a b) = "(" <> show a <> " + " <> show b <> ")"
   show (CProd a b) = "(" <> show a <> " * " <> show b <> ")"
   show (CPow a b) = "(" <> show a <> " ** " <> show b <> ")"
+  show (CLog a) = "log(" <> show a <> ")"
+  show (CExp a) = "exp(" <> show a <> ")"
   show (CAbs a) = "abs(" <> show a <> ")"
   show (CSignum a) = "signum(" <> show a <> ")"
   show (CConst c) = show c

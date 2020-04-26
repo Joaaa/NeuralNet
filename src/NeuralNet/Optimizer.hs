@@ -2,7 +2,6 @@
 module NeuralNet.Optimizer where
 
 import NeuralNet.DerivativeMath
-import qualified Data.Map as M
 import Control.Monad.State
 import qualified Data.Vector as V
 

@@ -11,4 +11,4 @@ dense :: Int -> LayerCreator
 dense numHidden inputs =
   replicateM numHidden $ do
     params <- createParamVariables (length inputs + 1)
-    return $ sum $ zipWith (*) (inputs <> [1]) params
+    return $ sum $ zipWith (*) (1:inputs) params
