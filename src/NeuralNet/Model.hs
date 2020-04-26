@@ -61,32 +61,32 @@ createModel numInputs layers =
     put $ compiledLayer ^. numOutputs
     return compiledLayer
 
-runModel :: Model -> [Double] -> [Double] -> [Double]
+runModel :: Model -> V.Vector Double -> V.Vector Double -> V.Vector Double
 runModel model ins params =
   fst $ flip execState (ins, params) $ forM_ (model ^. layers) $ \layer -> do
-    (currIns, (currParams, nextParams)) <- gets $ over _2 (splitAt (layer ^. numParams))
+    (currIns, (currParams, nextParams)) <- gets $ over _2 (V.splitAt (layer ^. numParams))
     put (calculateLayerOutput layer currIns currParams, nextParams)
 
-outputsAndDerivativesModel :: Model -> [Double] -> [Double] -> [Calculation] -> ([Double], [Double])
+outputsAndDerivativesModel :: Model -> V.Vector Double -> V.Vector Double -> [Calculation] -> (V.Vector Double, V.Vector Double)
 outputsAndDerivativesModel model ins params outputDerivatives =
   let (_, pd, o) = go (model ^. layers) ins params in (o, pd)
   where
-    go :: [CompiledLayer] -> [Double] -> [Double] -> ([Double], [Double], [Double])
-    go [] ins _ = (runCalculations [ins] outputDerivatives, [], ins)
+    go :: [CompiledLayer] -> V.Vector Double -> V.Vector Double -> (V.Vector Double, V.Vector Double, V.Vector Double)
+    go [] ins _ = (V.fromList $ runCalculations [ins] outputDerivatives, mempty, ins)
     go (lh:lt) ins params = (inputDerivatives, paramDerivatives <> nextParamDerivatives, finalOutputs)
       where
-        (currParams, nextParams) = splitAt (lh ^. numParams) params
+        (currParams, nextParams) = V.splitAt (lh ^. numParams) params
         outputs = calculateLayerOutput lh ins currParams
         (outputDerivatives, nextParamDerivatives, finalOutputs) = go lt outputs nextParams
         (inputDerivatives, paramDerivatives) = calculateDerivatives lh ins currParams outputDerivatives
 
 
 
-calculateLayerOutput :: CompiledLayer -> [Double] -> [Double] -> [Double]
-calculateLayerOutput layer inputs params = runCalculations [inputs, params] (layer ^. outputs)
+calculateLayerOutput :: CompiledLayer -> V.Vector Double -> V.Vector Double -> V.Vector Double
+calculateLayerOutput layer inputs params = V.fromList $ runCalculations [inputs, params] (layer ^. outputs)
 
-calculateDerivatives :: CompiledLayer -> [Double] -> [Double] -> [Double] -> ([Double], [Double])
-calculateDerivatives layer ins params outputDerivatives = (layer ^. inputDerivatives, layer ^. paramDerivatives) & both %~ runCalculations [ins, params, outputDerivatives]
+calculateDerivatives :: CompiledLayer -> V.Vector Double -> V.Vector Double -> V.Vector Double -> (V.Vector Double, V.Vector Double)
+calculateDerivatives layer ins params outputDerivatives = (layer ^. inputDerivatives, layer ^. paramDerivatives) & both %~ V.fromList . runCalculations [ins, params, outputDerivatives]
 
 ---- loss -> nextLayers -> inputs -> (outputDerivatives, allParamAccessor)
 --test :: ([Calculation] -> [Calculation]) -> [CompiledLayer] -> [Double] -> ([Double], Traversal' [CompiledLayer] [Double])

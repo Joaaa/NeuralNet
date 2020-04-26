@@ -17,6 +17,7 @@ import qualified Data.Map as M
 import System.Random
 import Graphics.Matplotlib
 import System.IO (stdout, hFlush)
+import qualified Data.Vector as V
 
 run = main
 
@@ -28,8 +29,8 @@ main = do
   as :: [Double] <- replicateM 100 $ randomRIO (-1.0, 1.0)
   bs :: [Double] <- replicateM 100 $ randomRIO (-1.0, 1.0)
   let ins = zipWith (\a b -> [a, b]) as bs
-  let outs = zipWith (\a b -> [a + b]) as bs
-  (losses, n') <- runStateT (forM [1..100] (\i -> liftIO (putStrLn $ "Iteration " <> show i) >> iteration ins outs)) n
+  let outs = zipWith (\a b -> [a * b]) as bs
+  (losses, n') <- runStateT (forM [1..1000] (\i -> liftIO (putStrLn $ "Iteration " <> show i) >> iteration ins outs)) n
   onscreen $ plot [1..length losses] losses % mp # "plot.yscale(\"log\")" % title "Loss"
   pred n' [0.5, -0.2]
   pred n' [0, 0]
@@ -38,25 +39,32 @@ main = do
   pred n' [0.8, -0.9]
   pred n' [0.5, 1]
   pred n' [2, 2]
---  forever $ do
---    hFlush stdout
---    (a, b) <- readLn :: IO (Double, Double)
---    pred n' [a, b]
-  where pred n ins = putStrLn $ "f(" <> show ins <> ") = " <> show (predict n ins)
+  forever $ do
+    hFlush stdout
+    (a, b) <- readLn :: IO (Double, Double)
+    pred n' [a, b]
+  where pred n ins = putStrLn $ "f(" <> show ins <> ") = " <> show (predict n $ V.fromList ins)
 
 iteration :: [[Double]] -> [[Double]] -> StateT Network IO Double
 iteration ins outs = do
   n <- get
-  let (losses, n') = runState (forM (zip ins outs) (uncurry trainingStep)) n
+  let ins' = map V.fromList ins
+  let outs' = map V.fromList outs
+  let (losses, n') = runState (forM (zip ins' outs') (uncurry trainingStep)) n
   let avgLoss = sum losses / fromIntegral (length ins)
   liftIO $ do
     putStrLn $ "Average loss: " <> show avgLoss
     putStrLn $ "Parameter range: [" <> show (minimum $ n' ^. currentParams) <> ", " <> show (maximum $ n' ^. currentParams) <> "]"
+    hFlush stdout
   put n'
   return avgLoss
 
 sampleModel = createModel 2 [
-    dense 5,
+    dense 10,
+    relu,
+    dense 10,
+    relu,
+    dense 10,
     relu,
     dense 1
   ]
