@@ -1,4 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ExistentialQuantification #-}
 module NeuralNet.Network where
 
 import NeuralNet.Model
@@ -10,22 +12,22 @@ import NeuralNet.Optimizer
 import Debug.Trace (trace)
 import qualified Data.Vector as V
 
-data Network = Network {
+data Network optimizer = Network {
   _model :: !Model,
   _currentParams :: !(V.Vector Double),
   _loss :: !LossFunction,
-  _optimizer :: !Optimizer
+  _optimizer :: !optimizer
 }
 
 makeLenses ''Network
 
-createNetwork :: Model -> LossFunction -> Optimizer -> [Double] -> Network
+createNetwork :: Model -> LossFunction -> optimizer -> [Double] -> Network optimizer
 createNetwork model lossFunction optimizer initialParams =
   Network model initialParams' lossFunction optimizer
   where
     initialParams' = V.fromList $ take (totalParams model) initialParams
 
-trainingStep :: V.Vector Double -> V.Vector Double -> State Network Double
+trainingStep :: Optimizer optimizer => V.Vector Double -> V.Vector Double -> State (Network optimizer) Double
 trainingStep ins outs = do
   network <- get
   let
@@ -34,9 +36,10 @@ trainingStep ins outs = do
     outputDerivatives = map (`deriveTo` l) outputVars
     (modelOutputs, paramDerivatives) = outputsAndDerivativesModel (network ^. model) ins (network ^. currentParams) outputDerivatives
     currentLoss = runCalculation modelOutputs l
-  zoom currentParams $ (network ^. optimizer) currentLoss paramDerivatives
+  newParams <- zoom optimizer $ optimize currentLoss paramDerivatives (network ^. currentParams)
+  currentParams .= newParams
   return currentLoss
 
-predict :: Network -> V.Vector Double -> V.Vector Double
+predict :: Network optimizer -> V.Vector Double -> V.Vector Double
 predict network ins =
   runModel (network ^. model) ins (network ^. currentParams)

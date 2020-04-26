@@ -18,7 +18,7 @@ import System.Random
 import Graphics.Matplotlib
 import System.IO (stdout, hFlush)
 import qualified Data.Vector as V
-import NeuralNet.Optimizer (sgd)
+import NeuralNet.Optimizer
 
 main :: IO ()
 main = do
@@ -44,7 +44,7 @@ main = do
   readLn
   where pred n ins = putStrLn $ "f(" <> show ins <> ") = " <> show (predict n $ V.fromList ins)
 
-iteration :: [[Double]] -> [[Double]] -> StateT Network IO Double
+iteration :: Optimizer optimizer => [[Double]] -> [[Double]] -> StateT (Network optimizer) IO Double
 iteration ins outs = do
   n <- get
   let ins' = map V.fromList ins

@@ -24,17 +24,14 @@ main = do
   (numLabels, labels) <- readLabels "MNIST/train-labels"
   (numImages, numRows, numCols, images) <- readImages "MNIST/train-images"
   network <- initNetwork (numRows * numCols)
-  evaluate network
+  evaluate network False
 --  print $ predict network $ V.fromList $ map (\x -> fromIntegral x / 127.5 - 1) $ head images
   (losses, n') <- runStateT (forM [1..300] (\i -> liftIO (putStrLn $ "Iteration " <> show i) >> iteration images labels)) network
   onscreen $ plot [1..length losses] losses % mp # "plot.yscale(\"log\")" % title "Loss"
-  evaluate n'
+  evaluate n' True
   readLn
---  forever $ do
---    i <- readLn :: IO Int
---    drawImage ("Digit: " <> show (labels !! i)) numRows numCols (images !! i)
 
-iteration :: V.Vector (V.Vector Int) -> V.Vector Int -> StateT Network IO Double
+iteration :: Optimizer optimizer => V.Vector (V.Vector Int) -> V.Vector Int -> StateT (Network optimizer) IO Double
 iteration images labels = do
   n <- get
   let batchSize = 100
@@ -50,15 +47,16 @@ iteration images labels = do
   put n'
   return avgLoss
 
-evaluate :: Network -> IO ()
-evaluate network = do
+evaluate :: Network optimizer -> Bool -> IO ()
+evaluate network visualize = do
   (numLabels, labels) <- readLabels "MNIST/test-labels"
   (numImages, numRows, numCols, images) <- readImages "MNIST/test-images"
   let correct = sum $ map (\i -> if argmax (V.toList $ predict network (prepareImage $ images V.! i)) == labels V.! i then 1 else 0) [0 .. numLabels - 1] :: Int
-  printf "Accuracy: %d/%d (%.3f)" correct numLabels ((100.0 * fromIntegral correct / fromIntegral numLabels) :: Float)
+  printf "Accuracy: %d/%d (%.3f)\n" correct numLabels ((100.0 * fromIntegral correct / fromIntegral numLabels) :: Float)
   hFlush stdout
-
---  putStrLn "Accuracy: " <> show correct <> "/" <> show numLabels <> "(" <> show (formatFloatN (100 * correct / fromIntegral numLabels) 3) <> "%)"
+  when visualize $ forever $ do
+    i <- readLn :: IO Int
+    drawImage ("Digit: " <> show (labels V.! i) <> ", predicted: " <> show (argmax (V.toList $ predict network (prepareImage $ images V.! i)))) numRows numCols (images V.! i)
 
 argmax :: (Ord a) => [a] -> Int
 argmax = snd . maximum . flip zip [0..]
@@ -69,10 +67,10 @@ prepareImage = fmap (\x -> fromIntegral x / 127.5 - 1)
 prepareLabel :: Int -> V.Vector Double
 prepareLabel l = V.fromList [if l == i then 1 else 0 | i <- [0..9]]
 
-initNetwork :: Int -> IO Network
+initNetwork :: Int -> IO (Network Adam)
 initNetwork numInputs = do
-  let model = createModel numInputs [dense 10, relu, dense 10, relu, dense 10, softmax]
-  createNetwork model categoricalCrossEntropy (sgd 0.03) <$> replicateM (totalParams model) (randomRIO (-1.0, 1.0))
+  let model = createModel numInputs [dense 10, softmax]
+  createNetwork model categoricalCrossEntropy (adam (totalParams model) 0.001 0.9 0.999) <$> replicateM (totalParams model) (randomRIO (-1.0, 1.0))
 
 readLabels :: FilePath -> IO (Int, V.Vector Int)
 readLabels fn = evalState parseContent <$> BS.readFile fn
@@ -102,7 +100,7 @@ readInt32 = foldl (\a b -> a * 0x100 + fromIntegral b) 0 . BS.unpack <$> state (
 readBytes :: Int -> State BS.ByteString [Int]
 readBytes n = map fromIntegral . BS.unpack <$> state (BS.splitAt n)
 
-drawImage :: String -> Int -> Int -> [Int] -> IO ()
+drawImage :: String -> Int -> Int -> V.Vector Int -> IO ()
 drawImage header rows cols img =
-  let img' = reverse $ evalState (replicateM rows $ state $ splitAt cols) img in
+  let img' = reverse $ evalState (replicateM rows $ state $ splitAt cols) $ V.toList img in
     onscreen $ pcolor img' % title header
